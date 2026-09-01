@@ -1,0 +1,666 @@
+/* style.css — 『経理の魔王様』第1話
+ * 書き文字・集中線・縦書き吹き出し・伝票の枠・胃ゲージの枠は全部ここで作る（画像を足さない）。
+ */
+:root{
+  --u:14px;
+  --paper:#e9dfc6; --ink:#241c17; --shu:#c8342b; --shu2:#2c4f86;
+  --gold:#d8b45a; --murasaki:#3d2b5e; --bg0:#0d0a10;
+  /* ★つる指摘【7】：横いっぱいだと視線が左右に振られて読みづらい。
+     **人物とテキストは中央の帯（--cw）に収め、左右（--cpad）は背景だけ**にする。
+     背景・マップ・大ゴマは今までどおり画面いっぱい。帯の広さは engine の resize() が
+     アスペクト比から決める（横長ほど絞り、スマホ縦持ちはほぼ全幅）。 */
+  --cw:100%; --cpad:0px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#000;color:#fff}
+body{font-family:"Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif;user-select:none}
+
+#app{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--bg0)}
+#app[data-font="mincho"] #textbox,
+#app[data-font="mincho"] .balloon,
+#app[data-font="mincho"] #komaCaption{font-family:"Noto Serif JP","Hiragino Mincho ProN","Yu Mincho",serif}
+
+/* ---------------- 画（上段） ---------------- */
+#view{position:relative;flex:1 1 auto;overflow:hidden;background:#000;transition:filter .12s}
+#app[data-tone="serious"] #view{filter:saturate(.82)}
+#app[data-tone="kaisou"] #view{filter:grayscale(1) contrast(1.15)}
+
+#bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;transition:object-position .5s ease}
+/* ★一枚絵（still_*）は「切らない」＝縦横どちらでも contain。
+   横長でもウィンドウの高さが狭いと cover は上下を大きく削る。RPG層は #dock が消えて #view が
+   画面いっぱいになるぶん、16:9の一枚絵より横長になりやすい。
+   つるの実機（1920×900）実測：絵の上端を90px削り、縦書き吹き出しのアンカー（魔王＝絵の上から20%）が
+   126pxまで上がって、口上の吹き出しが最大444px画面外へ出ていた＝顔も台詞の頭も見えない。
+   決裁層の bg_shinsa_01 だけは cover のまま（2400×1350をCSSパンして2画角を作る設計・03_assets 1-3）。 */
+#bg[data-fit="auto"]{object-fit:contain}
+/* contain で空いた余白は、同じ絵をぼかして敷いて埋める（**新規画像素材ゼロ**）。
+   url() を var() で渡すので、engine 側で必ず絶対URLにしてから入れる（css/ 基準で解決されると404る）。 */
+#view::before{content:"";position:absolute;inset:0;background-image:var(--bgTex);background-size:cover;
+  background-position:center;filter:blur(calc(var(--u)*1.7)) brightness(.4) saturate(.65);
+  transform:scale(1.1);opacity:0;transition:opacity .3s;pointer-events:none}
+#view[data-letterbox="1"]::before{opacity:1}
+#bg[data-pan="left"]{object-position:22% center}
+#bg[data-pan="right"]{object-position:78% center}
+/* つる指摘【21】（2026-08-27 スマホ実機）
+   「スマホでは2人表示じゃなくて一人ずつにしたのは見やすくていいけど、
+     背景行ったり来たり忙しいから背景は固定して」
+   横長は「魔王 vs ノルマンの2ショット」なので話者に応じて画角を振る設計だが、
+   縦持ちは**話している人だけを大きく出す**ので、そこに背景の振りが重なると
+   1行ごとに画面全体が左右へ動いて目が疲れる。**縦持ちは画角を中央で固定する。** */
+@media (max-aspect-ratio: 6/5){
+  #app[data-orient="port"] #bg[data-pan="left"],
+  #app[data-orient="port"] #bg[data-pan="right"]{object-position:50% center}
+}
+
+#mapCanvas{position:absolute;inset:0;margin:auto;max-width:100%;max-height:100%;
+  width:auto;height:auto;image-rendering:pixelated;aspect-ratio:3/2}
+
+/* 立ち絵 */
+.chara{position:absolute;bottom:0;height:96%;width:auto;object-fit:contain;
+  filter:brightness(.62) saturate(.8);transition:none;pointer-events:none}
+.chara.active{filter:brightness(1) saturate(1)}
+.chara.left{left:calc(var(--cpad) + var(--cw)*.01)}
+.chara.right{right:calc(var(--cpad) + var(--cw)*.01)}
+.chara.center{right:calc(var(--cpad) + var(--cw)*.26)}
+#charaL[data-trio="1"]{opacity:.35}
+/* 透過待ちの仮表示（つるのChatGPT透過が済んだらフラグで自動的に外れる） */
+.chara.untransparent{mix-blend-mode:multiply;filter:brightness(1.15) saturate(.95) contrast(1.05)}
+.chara.untransparent.active{filter:brightness(1.3) saturate(1.05) contrast(1.05)}
+
+/* 大ゴマ */
+.koma{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;
+  animation:komaIn .12s ease-out}
+.koma.mono{filter:grayscale(1) contrast(1.18) brightness(1.02)}
+.koma[data-half="top"]{object-fit:cover;object-position:center 6%}
+.koma[data-half="bottom"]{object-fit:cover;object-position:center 94%}
+@keyframes komaIn{from{transform:scale(1.06);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* つる指摘（2026-08-23 実機）【18】「この辺の下の文字、もう少し上で大きくの方がいいな」
+   .koma は object-fit:contain なので、画面が画像(3:2)より縦長だと上下に黒帯が出る。
+   bottom:0 だと台詞が「画像の下端」ではなく「画面の下端」＝真っ黒な余白に浮く
+   （スマホ390x844では画像高さ260pxに対し台詞が292px下＝完全に絵の外だった）。
+   --komaPad で黒帯の高さを算出し、台詞を必ず絵の中の下部に置く。 */
+#komaCaption{position:absolute;left:var(--cpad);right:var(--cpad);
+  bottom:calc(var(--komaPad,0px) + var(--u)*1.4);
+  padding:calc(var(--u)*.9) calc(var(--u)*1.4);
+  background:linear-gradient(transparent,rgba(0,0,0,.82) 30%);font-size:calc(var(--u)*1.9);
+  line-height:1.5;text-shadow:0 2px 8px #000,0 0 18px rgba(0,0,0,.9)}
+#komaCaption .cname{display:block;font-size:calc(var(--u)*1.2);color:var(--gold);letter-spacing:.1em}
+
+/* つる指示【23】（2026-08-27 スマホ実機）
+   「最後の方の魔王激怒で『不備をなくせ！』は画面下じゃなくて真ん中にでかでかと表示して」
+   本作で魔王が声を張るのは**生涯ここ一度きり**（不変リスト6）。大ゴマ#5の下コマ＝
+   激昂のアップと同時に出る台詞なのに、絵の下の台詞欄で普通に流れていた。
+   → この行だけ**絵の中央へ、画面いっぱいの大きさで**出す。素材は増やさない（CSSだけ）。 */
+#shout{position:absolute;left:0;right:0;
+  top:calc(var(--komaPad,0px));bottom:calc(var(--komaPad,0px));
+  display:none;place-items:center;z-index:8;pointer-events:none}
+#shout.on{display:grid}
+/* ★つる指示（2026-09-01 実機）「赤文字・黄色縁取り・なんか強そうなフォントに」。
+   明朝の白文字は「叫び」より「ナレーション」に見えていた。本作で魔王が声を張るのは
+   生涯ここ一度きりなので、**マンガの効果音の作り**にする：極太ゴシック＋赤字＋黄縁。
+   縁が2段（内=黄／外=黒）なのは、黄色だけだと明るい絵（勇者側のコマ）で溶けるから。
+   `-webkit-text-stroke` は1本しか引けないので、外側の黒は text-shadow を重ねて作る。
+   **新規フォントは読み込まない**（配信物を増やさない・外部依存を作らない）。 */
+#shout .stxt{font-family:"Noto Sans JP","Hiragino Sans","Yu Gothic UI","Yu Gothic","Meiryo",sans-serif;
+  font-weight:900;
+  writing-mode:horizontal-tb;text-align:center;line-height:1.08;
+  font-size:min(13vw,calc(var(--u)*7.2));letter-spacing:.02em;color:#e0201a;
+  /* ★つる指摘（2026-09-01 実機）：幅の上限が無く、grid の中身が max-content のまま
+     広がって**左右に52px/29pxはみ出し「く」が切れていた**。画面内で折り返させる。 */
+  max-width:94%;
+  -webkit-text-stroke:calc(var(--u)*.9) #ffd23c;paint-order:stroke fill;
+  /* 外側の黒縁（8方向）＋落とし影。絵の上でも輪郭が立つ。 */
+  text-shadow:
+    calc(var(--u)*.26) 0 0 #1a0d12, calc(var(--u)*-.26) 0 0 #1a0d12,
+    0 calc(var(--u)*.26) 0 #1a0d12, 0 calc(var(--u)*-.26) 0 #1a0d12,
+    calc(var(--u)*.19) calc(var(--u)*.19) 0 #1a0d12, calc(var(--u)*-.19) calc(var(--u)*.19) 0 #1a0d12,
+    calc(var(--u)*.19) calc(var(--u)*-.19) 0 #1a0d12, calc(var(--u)*-.19) calc(var(--u)*-.19) 0 #1a0d12,
+    0 calc(var(--u)*.4) calc(var(--u)*1.0) rgba(0,0,0,.85);
+  animation:shoutIn .5s cubic-bezier(.15,1.7,.35,1) both}
+/* 縦持ちは engine が「不備を／なくせ！！」の2行に折る。1行が短くなるぶん**字を大きく**できる。 */
+@media (max-aspect-ratio: 6/5){ #shout .stxt{font-size:min(17vw,calc(var(--u)*8.6))} }
+@keyframes shoutIn{
+  0%{transform:scale(.55) rotate(-3deg);opacity:0}
+  38%{transform:scale(1.14) rotate(1.2deg);opacity:1}
+  62%{transform:scale(.98) rotate(-.6deg)}
+  100%{transform:scale(1) rotate(0);opacity:1}}
+
+/* ---------------- 縦書き吹き出し（RPG層） ---------------- */
+/* つる指摘（2026-08-23 実機）を4件まとめて反映：
+   【2】縦長の楕円にする（矩形の白い箱をやめる）
+   【3】話者名は出さない（吹き出しの位置で誰の台詞か分かるから）
+   【5】人物の真下に置かない（立ち絵に白い箱を被せない）＝engine が話者の左右へ逃がす
+   【6】読点・句点で改行する（熟語を割らない）
+   **新規画像素材はゼロ。全部CSSと計算で作る。** */
+#balloons{position:absolute;inset:0;pointer-events:none}
+
+/* 位置と大きさは engine が px で決める（left/top/width/height）。
+   transform は使わない——translate(-50%,-100%) で置いていた頃は、
+   はみ出しの計算が transform 込みになって追いづらかった。 */
+.balloon{position:absolute;box-sizing:border-box;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,252,246,.97);color:#20180f;
+  border:2px solid rgba(60,40,20,.35);border-radius:50%;          /* ← 楕円（つる指摘【2】） */
+  box-shadow:0 calc(var(--u)*.3) calc(var(--u)*1.1) rgba(0,0,0,.6);
+  font-size:calc(var(--u)*1.35);line-height:1.75;
+  animation:balIn .12s ease-out}
+.balloon .btext{writing-mode:vertical-rl;text-orientation:upright;
+  /* 【6】熟語を割らない。改行できるのは engine が入れた <wbr>（＝読点・句点の直後）だけ。
+     読点の無い長い台詞で溢れるときだけ engine が .anywhere を付けて通常改行へ落とす。 */
+  word-break:keep-all;line-break:strict;overflow-wrap:normal;
+  max-width:100%;max-height:100%}
+.balloon .btext.anywhere{word-break:normal;overflow-wrap:anywhere}
+.balloon.small{font-size:calc(var(--u)*.95);opacity:.9}
+@keyframes balIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+
+/* しっぽ。話者が右にいるか左にいるかで向きを変える（engine が side- を付ける）。 */
+.balloon::after{content:"";position:absolute;border:calc(var(--u)*.44) solid transparent}
+/* つる指摘【25】：横向きのしっぽは top:50% 固定だったので、**門の上のバルコニーにいる魔王**
+   を指せていなかった（吹き出しの真ん中から出るだけ）。--tailY で話者の高さを指す。 */
+.balloon.side-left::after{right:calc(var(--u)*-.86);top:var(--tailY,50%);margin-top:calc(var(--u)*-.44);
+  border-left-color:rgba(255,252,246,.97)}
+.balloon.side-right::after{left:calc(var(--u)*-.86);top:var(--tailY,50%);margin-top:calc(var(--u)*-.44);
+  border-right-color:rgba(255,252,246,.97)}
+/* しっぽの横位置は engine が --tailX で指す。左右にずらしても**しっぽは話者を指したまま**にする
+   （つる指摘【16】：ずらした結果どの台詞か分からなくなるのを防ぐ）。 */
+.balloon.side-up::after{bottom:calc(var(--u)*-.86);left:var(--tailX,50%);margin-left:calc(var(--u)*-.44);
+  border-top-color:rgba(255,252,246,.97)}
+.balloon.side-down::after{top:calc(var(--u)*-.86);left:var(--tailX,50%);margin-left:calc(var(--u)*-.44);
+  border-bottom-color:rgba(255,252,246,.97)}
+.balloon.side-none::after{display:none}
+
+/* ナレーション帯は従来どおり画面下の横書き（人物の台詞ではないので楕円にしない）。 */
+/* つる指摘【20】（2026-08-27 スマホ実機）「下のテキストボックス、画像のすぐ下に配置して」。
+   一枚絵は contain なので縦長画面では上下に余白が出る。bottom 固定だと帯が
+   **絵から遠い画面の底**に置かれていた。--bgPad（絵の下端までの余白）ぶん持ち上げる。 */
+/* ★つる指摘（2026-09-01 実機）：`left:50%` だけで `right` が無いと、絶対配置の
+   shrink-to-fit が使える幅は**画面の半分（206px）まで**になる。max-width:94% は
+   その内側でしか効かないので、16字の書名が**3行に割れていた**（実測 箱幅194px）。
+   → left:0/right:0 + margin:auto にして帯に全幅を使わせ、幅は max-width だけで決める。
+   ついでに translateX(-50%) をやめる。balIn の transform に一瞬打ち消されて
+   出るたび横にズレていた。 */
+.balloon.narr{left:0!important;right:0!important;top:auto!important;
+  width:fit-content!important;height:auto!important;
+  margin-left:auto;margin-right:auto;
+  bottom:calc(var(--bgPad,0px) + var(--u)*1.4);
+  transform:none;border-radius:calc(var(--u)*.7);
+  padding:calc(var(--u)*.7) calc(var(--u)*1.2);max-width:calc(var(--cw)*.94);
+  background:rgba(8,6,10,.86);color:#f2ece0;border-color:rgba(216,180,90,.4);text-align:center;
+  z-index:7}
+/* つる指摘（2026-08-26 実機）「閉じかっこだけ次の行なの見た目悪い」。
+   ラストの『魔王国 興行収支報告書（極秘）』で **』だけが次行へ落ちていた**。
+   line-break:auto は閉じ括弧の行頭禁則を保証しない（ブラウザ差もある）。
+   line-break:strict で日本語の禁則を効かせ、overflow-wrap:anywhere は使わない
+   （使うと括弧や句読点が単独で送られる）。 */
+.balloon.narr .btext{writing-mode:horizontal-tb;word-break:normal;
+  line-break:strict;overflow-wrap:normal;text-wrap:pretty}
+/* 万一パッドが出ている場面でナレーションが来ても、帯がパッドの上へ逃げる（QA-003の保険） */
+/* つる指摘【24】（2026-08-27 スマホ実機）「ここ文字の改行おかしい／できれば1行で表示して」。
+   『魔王国 興行収支報告書（極秘）』が3行に割れていた。計算上は1行に入る幅なのだが、
+   余裕が8pxしかなく（16字×18.6px=298px に対し使える幅306px）、実機のフォント差で溢れていた。
+   → ①使える幅を 86%→94% に広げる ②**縦持ちだけ字を少し詰める**（0.92倍）。
+   どちらも「地の文の1行を守る」ための最小限の調整で、他の場面の見え方は変えない。 */
+@media (max-aspect-ratio: 6/5){
+  #app[data-orient="port"] .balloon.narr{font-size:calc(var(--u)*1.38);
+    padding:calc(var(--u)*.7) calc(var(--u)*1.0)}
+}
+#app[data-walk="1"] .balloon.narr{bottom:calc(var(--bgPad,0px) + var(--u)*7.6)}
+.balloon.narr::after{display:none}
+
+/* ト書き（つる指摘【8】）。地の文と区別がつくよう少しだけ弱める。やりすぎない。 */
+.stage{font-size:.86em;color:#6f5f4c;letter-spacing:.02em}
+#komaCaption .stage{color:#bfb4a0}
+.balloon .stage{color:#6f5f4c}
+
+/* ---------------- 設定・戻る（つる指摘【4】） ----------------
+   画面を圧迫しないよう**左上の角に小さく**置く。roamHint は上中央、D-padは下、
+   吹き出しは話者の左右なので、ここが一番ぶつからない。
+   それでも重なるときは engine が吹き出しをこの下へ逃がす。 */
+#sysBtns{position:absolute;left:calc(var(--cpad) + var(--u)*.6);top:calc(var(--u)*.6);z-index:8;
+  display:flex;flex-direction:column;gap:calc(var(--u)*.35)}
+/* ★つる指摘【15】アイコンだけでは「設定」と分からなかった → 文字を添える。 */
+#sysBtns button{min-height:30px;border-radius:99px;background:rgba(20,16,26,.66);
+  border:1px solid rgba(216,180,90,.45);color:#e6dcc4;font-size:calc(var(--u)*.92);line-height:1;
+  cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:calc(var(--u)*.3);
+  padding:calc(var(--u)*.36) calc(var(--u)*.8);white-space:nowrap;transition:opacity .2s}
+#sysBtns button .ic{font-size:calc(var(--u)*1.05)}
+#sysBtns button:disabled{opacity:.28;cursor:default}
+#sysBtns button:hover:not(:disabled){background:rgba(60,48,80,.85)}
+
+#reviewBar{position:absolute;left:50%;top:calc(var(--u)*1.2);transform:translateX(-50%);z-index:9;
+  background:rgba(60,30,20,.9);border:1px solid rgba(216,180,90,.6);border-radius:99px;
+  padding:calc(var(--u)*.4) calc(var(--u)*1.1);font-size:calc(var(--u)*.9);color:#f6e9cf;
+  letter-spacing:.08em;white-space:nowrap}
+#app[data-review="1"] #textbox,#app[data-review="1"] .balloon{filter:sepia(.35) brightness(.94)}
+
+/* 設定パネル（#overlay に載せる） */
+.cfg{min-width:min(86vw,calc(var(--u)*26))}
+.cfgTitle{font-family:"Noto Serif JP",serif;font-size:calc(var(--u)*1.6);color:#f0e6cf;
+  letter-spacing:.2em;margin-bottom:calc(var(--u)*1.2)}
+.cfgRow{display:flex;align-items:center;gap:calc(var(--u)*.8);margin-bottom:calc(var(--u)*.9);
+  color:#e6dcc4;font-size:calc(var(--u)*1.05)}
+.cfgRow span:first-child{width:calc(var(--u)*5);text-align:right}
+.cfgRow input[type=range]{flex:1;accent-color:#c8342b}
+.cfgRow .cfgVal{width:calc(var(--u)*3);text-align:left;color:#c9bda0;font-size:calc(var(--u)*.95)}
+.cfgChk{display:flex;align-items:center;gap:calc(var(--u)*.5);color:#e6dcc4;
+  font-size:calc(var(--u)*1);margin-bottom:calc(var(--u)*.7);cursor:pointer;text-align:left}
+.cfgSect{color:#d8b45a;font-size:calc(var(--u)*.9);letter-spacing:.2em;text-align:left;
+  border-bottom:1px solid rgba(216,180,90,.28);padding-bottom:calc(var(--u)*.2);
+  margin-bottom:calc(var(--u)*.7)}
+.cfgNote{color:#7f7563;font-size:calc(var(--u)*.82);margin:calc(var(--u)*.3) 0 calc(var(--u)*1.1)}
+
+/* ★つる指摘【10】「魔王城の散策始まるの突然すぎる」
+   決裁層からRPG層へ何の前置きもなく切り替わっていた。転換のカードを1.8秒だけ挟み、
+   **何をすればいいのか**を最初に言う。さらに目的は消えない帯（#roamGoal）で出し続ける。 */
+#sceneCard{position:absolute;inset:0;z-index:12;display:grid;place-items:center;
+  background:rgba(6,4,9,.86);pointer-events:none;animation:cardIn .35s ease-out}
+#sceneCard.out{opacity:0;transition:opacity .45s}
+#sceneCard .scHead{font-family:"Noto Serif JP",serif;color:#d8b45a;letter-spacing:.34em;
+  font-size:calc(var(--u)*1.15);margin-bottom:calc(var(--u)*.7)}
+#sceneCard .scTitle{font-family:"Noto Serif JP",serif;color:#f0e6cf;letter-spacing:.22em;
+  font-size:calc(var(--u)*2.4);margin-bottom:calc(var(--u)*1.2)}
+#sceneCard .scGoal{color:#cfc4ae;font-size:calc(var(--u)*1.05);line-height:1.8;text-align:center;
+  max-width:calc(var(--cw)*.8)}
+#sceneCard .scGoal b{color:#f2e6c8;font-weight:700}
+@keyframes cardIn{from{opacity:0}to{opacity:1}}
+
+/* 目的の帯（幕間のあいだ出しっぱなし） */
+#roamGoal{position:absolute;left:50%;top:calc(var(--u)*1.1);transform:translateX(-50%);z-index:7;
+  background:rgba(8,6,10,.78);border:1px solid rgba(216,180,90,.45);border-radius:99px;
+  padding:calc(var(--u)*.38) calc(var(--u)*1.1);font-size:calc(var(--u)*.92);color:#f2ece0;
+  white-space:nowrap;max-width:calc(var(--cw)*.92);overflow:hidden;text-overflow:ellipsis}
+#roamGoal b{color:#ffe45c}
+
+/* ★つる指摘【11】「調べるボタンの使いどころがわからない」
+   近くに対象がないときは沈める。ラベルも「話しかける／机を調べる」に変える。
+   （disabled にはしない——押しても何も起きないのは engine 側で保証済みで、
+     属性で無効化すると自動プレイのタップ導線まで塞いでしまう） */
+#mvAct[data-ready="0"]{opacity:.42}
+#mvAct[data-ready="1"]{background:rgba(140,29,19,.9);border-color:#c8342b;color:#ffeede}
+
+.roamHint{position:absolute;left:50%;top:calc(var(--u)*4.6);transform:translateX(-50%);
+  background:rgba(8,6,10,.82);border:1px solid rgba(216,180,90,.5);border-radius:99px;
+  padding:calc(var(--u)*.45) calc(var(--u)*1.2);font-size:calc(var(--u)*.95);color:#f2ece0;
+  transition:opacity .8s}
+.roamHint.out{opacity:0}
+
+/* ---------------- 速射カード ---------------- */
+#slipCard{position:absolute;right:calc(var(--cpad) + var(--cw)*.03);top:6%;width:min(calc(var(--cw)*.46),calc(var(--u)*26));
+  background:var(--paper);color:var(--ink);border-radius:calc(var(--u)*.3);
+  box-shadow:0 calc(var(--u)*.5) calc(var(--u)*1.4) rgba(0,0,0,.7);padding:calc(var(--u)*1) calc(var(--u)*1.1);
+  border:1px solid #b9a781}
+#slipCard.in{animation:slipIn .16s ease-out}
+@keyframes slipIn{from{transform:translateX(60%);opacity:0}to{transform:none;opacity:1}}
+.slipHead{font-size:calc(var(--u)*.85);letter-spacing:.16em;color:#8a7350;border-bottom:1px solid #c3b189;padding-bottom:calc(var(--u)*.25)}
+.slipItem{font-size:calc(var(--u)*1.3);margin-top:calc(var(--u)*.5);font-weight:700}
+
+/* ---------------- 演出 ---------------- */
+#fxLayer{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.fxFlash{position:absolute;inset:0;background:#fff;animation:fl .22s ease-out forwards}
+@keyframes fl{0%{opacity:0}30%{opacity:.85}100%{opacity:0}}
+.fxBlack{position:absolute;inset:0;background:#000;opacity:1;transition:opacity .26s}
+.fxBlack.out{opacity:0}
+/* QA-047（モンテ検収7回目）：【18】と同じ穴が同じ画面にもう1つ空いていた。
+   漫画層は #dock が消えて #view=画面全体になり、大ゴマ(3:2)は contain で
+   上下に黒帯を作る。スマホ390x844では絵は y=292〜552 の260pxしかない。
+   .fxWrite は top:26%（#view基準 y=219）だったので**絵の上端より39px上の
+   真っ黒な余白**に出ていた。FX.write の発火7件は全部が大ゴマを伴う漫画層ノード
+   ＝100%該当。集中線も同じ。--komaPad（絵の上下の黒帯）は既にあるので、
+   両方ともその内側へ寄せる。 */
+.fxLines{position:absolute;left:0;right:0;
+  /* QA-055: 20% は #view 高さ基準なので、絵ではなく画面の2割ぶんはみ出していた
+     （実測 y=123〜721／絵は292〜552）。絵の高さ = 100% - komaPad*2 を基準にする。 */
+  top:calc(var(--komaPad,0px) - (100% - var(--komaPad,0px)*2) * .2);
+  bottom:calc(var(--komaPad,0px) - (100% - var(--komaPad,0px)*2) * .2);
+  background:repeating-conic-gradient(from 0deg at 50% 50%, rgba(255,255,255,.92) 0deg 0.7deg, transparent 0.7deg 3.2deg);
+  -webkit-mask-image:radial-gradient(circle at 50% 50%, transparent 26%, #000 62%);
+  mask-image:radial-gradient(circle at 50% 50%, transparent 26%, #000 62%);
+  animation:lines .7s ease-out forwards;mix-blend-mode:screen}
+@keyframes lines{0%{opacity:0;transform:scale(1.25)}18%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.96)}}
+.fxWrite{position:absolute;left:50%;top:calc(var(--komaPad,0px) + (100% - var(--komaPad,0px)*2) * .26);transform:translate(-50%,-50%) rotate(var(--rot,-4deg));
+  font-family:"Noto Serif JP",serif;font-weight:900;font-size:calc(var(--u)*6);color:#fff;
+  -webkit-text-stroke:calc(var(--u)*.34) #131019;paint-order:stroke fill;
+  text-shadow:0 0 calc(var(--u)*1.2) rgba(0,0,0,.9);animation:wr 1.1s cubic-bezier(.2,1.6,.4,1) forwards;white-space:nowrap}
+@keyframes wr{0%{transform:translate(-50%,-50%) rotate(var(--rot)) scale(.6);opacity:0}
+  22%{transform:translate(-50%,-50%) rotate(var(--rot)) scale(1.15);opacity:1}
+  36%{transform:translate(-50%,-50%) rotate(var(--rot)) scale(1)}
+  100%{transform:translate(-50%,-58%) rotate(var(--rot)) scale(1);opacity:0}}
+.fxStamp{position:absolute;left:50%;top:46%;width:32%;transform:translate(-50%,-50%) rotate(-14deg);
+  animation:stmp .9s cubic-bezier(.2,1.5,.4,1) forwards;pointer-events:none}
+@keyframes stmp{0%{transform:translate(-50%,-50%) rotate(-30deg) scale(2.4);opacity:0}
+  16%{transform:translate(-50%,-50%) rotate(-14deg) scale(1);opacity:1}
+  70%{opacity:1}100%{opacity:0}}
+.shake{animation:sh .26s}
+.shakeHard{animation:shh .42s}
+@keyframes sh{0%,100%{transform:none}20%{transform:translate(-6px,3px)}45%{transform:translate(5px,-4px)}70%{transform:translate(-3px,2px)}}
+@keyframes shh{0%,100%{transform:none}12%{transform:translate(-14px,7px)}30%{transform:translate(12px,-9px)}
+  52%{transform:translate(-9px,5px)}74%{transform:translate(7px,-4px)}}
+.zoomIn > #bg,.zoomIn > .koma,.zoomIn > .chara{transition:transform .9s ease-out;transform:scale(1.12)}
+
+.titleCall{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.55);transition:opacity .5s}
+.titleCall.out{opacity:0}
+.titleCall img{width:74%;max-height:52%;object-fit:contain;animation:tc .5s cubic-bezier(.2,1.5,.4,1)}
+.titleCall span{font-family:"Noto Serif JP",serif;font-weight:900;font-size:calc(var(--u)*4.2);
+  -webkit-text-stroke:calc(var(--u)*.2) #000;paint-order:stroke fill}
+@keyframes tc{from{transform:scale(2.2);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* ---------------- 文字と操作（下段） ---------------- */
+#dock{flex:0 0 auto;height:clamp(168px,30vh,260px);background:linear-gradient(#14101a,#0b0810);
+  border-top:2px solid rgba(216,180,90,.35);display:flex;flex-direction:column;position:relative}
+#app[data-orient="port"] #dock{height:clamp(200px,40vh,380px)}
+#app[data-layer="RPG"] #dock{display:none}
+
+#hud{display:flex;align-items:center;gap:calc(var(--u)*.8);
+  padding:calc(var(--u)*.35) calc(var(--cpad) + var(--u)*.9);
+  border-bottom:1px solid rgba(216,180,90,.2);font-size:calc(var(--u)*.9)}
+.hudSpace{flex:1}
+#stomachBox{display:flex;gap:calc(var(--u)*.22)}
+#stomachBox.hurt{animation:sh .26s}
+.st{width:calc(var(--u)*1.7);height:calc(var(--u)*1.7);background-image:var(--stomach);
+  background-size:300% 100%;background-repeat:no-repeat;image-rendering:pixelated}
+.st.on[data-frame="0"]{background-position:0 0}
+.st.on[data-frame="1"]{background-position:50% 0}
+.st.on[data-frame="2"]{background-position:100% 0}
+.st.off{opacity:.16;background-position:0 0;filter:grayscale(1)}
+#slipBox{color:var(--gold);letter-spacing:.1em}
+#muteBtn{background:transparent;border:1px solid rgba(216,180,90,.45);color:#e6dcc4;border-radius:99px;
+  padding:calc(var(--u)*.2) calc(var(--u)*.7);font-size:calc(var(--u)*.85);cursor:pointer}
+
+#textbox{flex:1;position:relative;margin:calc(var(--u)*.6) calc(var(--cpad) + var(--u)*.9);padding:calc(var(--u)*.8) calc(var(--u)*1.1);
+  background:rgba(233,223,198,.96);color:var(--ink);border-radius:calc(var(--u)*.35);
+  border:1px solid #b6a37c;box-shadow:inset 0 0 calc(var(--u)*2) rgba(120,96,56,.22);
+  font-size:calc(var(--u)*1.45);line-height:1.7;overflow:auto}
+#textbox[data-mono="1"] #body{color:#4a3d68;font-style:italic}
+#speaker{color:#7a4b2a;font-size:calc(var(--u)*1);letter-spacing:.14em;margin-bottom:calc(var(--u)*.25);font-weight:700}
+/* ★つる指摘【12】「なんで在庫記録の庫記録だけマーキングしてるの?」
+   (a) 行をまたぐとマーカーが片方の行にしか乗らない
+       → インライン要素の背景は既定で「1つの箱」として塗られる（box-decoration-break:slice）。
+         clone にすると**断片ごとに**塗られるので、何行に割れても全部に乗る。
+   (b) 強調の途中で熟語が割れる（在／庫記録）
+       → free（通常折り返し）へ落ちたときも**強調の中だけは割らない**。
+         `.emph` 自身に keep-all を持たせて、親の overflow-wrap:anywhere を上書きする。 */
+.emph{font-style:normal;font-weight:900;color:#8c1d13;
+  background:linear-gradient(transparent 62%,rgba(200,52,43,.22) 62%);
+  -webkit-box-decoration-break:clone;box-decoration-break:clone;
+  word-break:keep-all;overflow-wrap:normal}
+/* 縦書きではマーカーを行の右側へ引く（横書きの下線にあたる位置） */
+.balloon .emph{background:linear-gradient(to right,transparent 62%,rgba(200,52,43,.22) 62%)}
+/* 強調が単独で1行に収まらないときだけ、最後の逃げ道として割る（engine が付ける） */
+.btext.emphBreak .emph,#body.emphBreak .emph{word-break:normal;overflow-wrap:anywhere}
+.cursor{position:absolute;right:calc(var(--u)*.6);bottom:calc(var(--u)*.35);color:#8a7350;
+  font-size:calc(var(--u)*.9);opacity:0;animation:blink 1s infinite}
+#app[data-wait="1"] .cursor{opacity:1}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:.15}}
+
+/* ★justify-content:center は、中身が容器より高くなると**上側がスクロールで届かなくなる**
+   （flexの古典的な穴）。safe を付けると溢れたときだけ flex-start に落ちるので全部読める。
+   1920×900 で選択肢の最後が7px下に隠れていたのを、はみ出し検査が拾って発覚。 */
+#choices{position:absolute;top:0;bottom:0;left:var(--cpad);right:var(--cpad);background:rgba(10,8,14,.94);display:flex;flex-direction:column;
+  justify-content:safe center;gap:calc(var(--u)*.5);padding:calc(var(--u)*.8) calc(var(--u)*1.2);z-index:5;overflow:auto}
+.chTitle{color:var(--gold);font-size:calc(var(--u)*1);letter-spacing:.14em}
+.chList{display:flex;flex-direction:column;gap:calc(var(--u)*.45)}
+.ch{text-align:left;background:rgba(233,223,198,.94);color:var(--ink);border:1px solid #b6a37c;
+  border-radius:calc(var(--u)*.3);padding:calc(var(--u)*.6) calc(var(--u)*.9);font-size:calc(var(--u)*1.2);
+  cursor:pointer;font-family:inherit;line-height:1.4}
+.ch:hover:not(:disabled){background:#fff8e6;transform:translateX(calc(var(--u)*.2))}
+.ch.hot{background:#8c1d13;color:#ffeede;border-color:#c8342b;font-weight:700}
+.ch.hot:hover:not(:disabled){background:#a82418}
+.ch.done{opacity:.34;text-decoration:line-through;cursor:not-allowed}
+
+/* ---------------- オーバーレイ ---------------- */
+#overlay{position:fixed;inset:0;display:none;place-items:center;background:rgba(4,3,6,.9);z-index:40}
+.ovBox{text-align:center;padding:calc(var(--u)*2);max-width:min(92vw,calc(var(--u)*46))}
+/* ============================================================
+   タイトル画面（つる採用＝キービジュアル案B `title_key_b`）
+   絵の見どころ＝**5人の顔（高さ33〜40%）**と**机の上の対比・散らかり↔整然（60〜72%）**。
+   ここには文字を一切かぶせない。文字は
+     ①上端0〜26%＝コーニスより上の静かな壁（横エッジ実測1.4〜1.8で平坦）
+     ②下端＝床と机の前面
+   の2箇所だけに置き、可読性は**べた塗りでなくグラデーションのスクリム**で確保する。
+   ============================================================ */
+/* つる指摘（2026-08-27 スマホ実機）「背景真っ暗ちょっともったいないから工夫して」。
+   ここが #0a0810 のべた黒で、下の .titleScreen に何を敷いても**上から黒で塗り潰していた**
+   （縦持ちでは絵の帯の上下に素の黒が画面の半分ぶん残る）。
+   → 絵から続く色（書架の焦茶・石壁のクリーム）へ抜けていく地に置き換える。 */
+#overlay[data-title="1"]{padding:0;place-items:stretch;
+  background:
+    radial-gradient(128% 58% at 50% 50%, rgba(146,106,62,.34), rgba(146,106,62,0) 72%),
+    linear-gradient(180deg, #100b07 0%, #201709 24%, #33240f 50%, #1b1308 78%, #0a0705 100%)}
+.titleScreen{position:relative;width:100%;height:100%;max-width:none;padding:0;
+  display:grid;grid-template-rows:auto 1fr auto;text-align:center;overflow:hidden}
+.tkArt{position:absolute;inset:0;z-index:0;background-image:var(--keyTex);
+  background-repeat:no-repeat;background-size:cover;background-position:50% 46%}
+.titleScreen > .tkTop,.titleScreen > .tkMid,.titleScreen > .tkFoot{position:relative;z-index:1}
+.tkTop{padding:calc(var(--u)*.9) calc(var(--u)*1.2) calc(var(--u)*.7);
+  background:linear-gradient(rgba(6,4,9,.88) 38%,rgba(6,4,9,.5) 76%,rgba(6,4,9,0))}
+.tkMid{min-height:0}
+/* 下端。サブタイトルを外した（【17】）ので、**ボタンを底に寄せて**下帯自体に
+   最低の高さを持たせる。こうすると「セーブ有り＝2つ／無し＝1つ」でボタンの
+   足元の余白が変わらず、スクリムの伸びも一定になる。 */
+.tkFoot{padding:calc(var(--u)*1.1) calc(var(--u)*1.2) calc(var(--u)*1.4);
+  min-height:calc(var(--u)*7.5);display:flex;flex-direction:column;justify-content:flex-end;
+  background:linear-gradient(rgba(6,4,9,0),rgba(6,4,9,.6) 30%,rgba(6,4,9,.94))}
+
+/* ロゴは上端の帯に収める（画面の高さの20%まで）。新規に作字はしない＝既存の ui_title_logo_01 */
+.titleLogo{width:auto;max-width:min(76%,calc(var(--u)*32));max-height:20vh;object-fit:contain;
+  display:block;margin:0 auto;
+  filter:drop-shadow(0 calc(var(--u)*.22) calc(var(--u)*.7) rgba(0,0,0,.92))}
+h1.titleLogo{font-family:"Noto Serif JP",serif;font-size:calc(var(--u)*3.2);color:#f0e6cf}
+/* キャッチコピー（2026-08-23 つる確定）。**ロゴ画像には入っていない**ので文字で組む。
+   題（ロゴ）→キャッチ→第1話サブタイトル の三段構成。キャッチだけ明朝＋金で一段強い。 */
+.titleCatch{margin-top:calc(var(--u)*.9);font-family:"Noto Serif JP","Hiragino Mincho ProN","Yu Mincho",serif;
+  font-weight:700;color:#e6cf8e;font-size:calc(var(--u)*1.3);letter-spacing:.05em;line-height:1.45;
+  text-shadow:0 calc(var(--u)*.06) calc(var(--u)*.28) rgba(0,0,0,.9)}
+.titleSub{margin-top:calc(var(--u)*.55);color:#c9bda0;font-size:calc(var(--u)*1.05);letter-spacing:.1em}
+.titleBtns{display:flex;flex-direction:column;gap:calc(var(--u)*.55);margin-top:calc(var(--u)*.9);
+  max-width:calc(var(--u)*22);margin-left:auto;margin-right:auto}
+.titleScreen .titleBtns{margin-top:0}
+.titleNote{margin-top:calc(var(--u)*.7);color:#9a8f7c;font-size:calc(var(--u)*.8);
+  text-shadow:0 1px 3px rgba(0,0,0,.9)}
+/* 絵の上に載るので、キャッチとサブも影を足して沈まないようにする */
+.titleScreen .titleCatch{text-shadow:0 calc(var(--u)*.08) calc(var(--u)*.3) rgba(0,0,0,.95)}
+
+/* ---- 縦持ち：1920×1080の横長を全面 cover にすると横26%しか映らず魔王が切れる。
+        絵の高さを画面の40%に固定して**帯**で見せると、横は65%映る＝
+        ノルマン(49%)と魔王(82%)が両方入る（つる指定の優先順）。 ---- */
+@media (max-aspect-ratio: 6/5){
+  /* つる指示（2026-08-27 スマホ実機）
+     「スマホのトップ画面こっちにして、タイトルもボタンまで画像の上に重ねちゃって」
+     → 縦持ちは**縦長のキービジュアルを全面に敷き**、ロゴもキャッチもボタンも
+        その上に重ねる。帯にして上下へ黒を残す方式はやめる。
+     縦長絵は上0〜22%／下0〜18%を「壁と床だけ」で描かせてあるので、
+     そこへ文字とボタンを載せても人物にはかからない。 */
+  /* 端末で画面比が変わっても人物が切れないよう、**人物帯の中心（実測58%）**へ寄せる。
+     画像は比2.16なので、どの端末でも横はほぼ切れず（最大3%）、切れるのは上下＝壁と床。 */
+  .tkArt{background-image:var(--keyTexP,var(--keyTex));
+    background-size:cover;background-position:50% 58%}
+  .titleLogo{max-height:15vh;max-width:84%}
+  .titleCatch{margin-top:calc(var(--u)*.5);font-size:calc(var(--u)*1.15)}
+  /* つる指示（2026-08-27）「タイトルと下のはじめからボタン、もっと中央に寄せて、
+     PCの横画像と同じくらいの場所にはめて」。縦長は上下が余るので、両端に貼り付くと
+     人物から離れて間延びする。**上下から内側へ寄せて、絵の中に収まって見える位置**へ。
+     文字が絵に乗るので、可読性はスクリムで確保する（べた塗りにはしない）。 */
+  .tkTop{padding:19vh calc(var(--u)*1.1) calc(var(--u)*1.6);
+    background:linear-gradient(rgba(6,4,9,.62) 18%,rgba(6,4,9,.72) 48%,rgba(6,4,9,.34) 82%,rgba(6,4,9,0))}
+  .tkFoot{padding:calc(var(--u)*1.4) calc(var(--u)*1.2) 20vh;
+    min-height:calc(var(--u)*6.2);
+    background:linear-gradient(rgba(6,4,9,0),rgba(6,4,9,.34) 18%,rgba(6,4,9,.72) 52%,rgba(6,4,9,.62))}
+  .titleBtns{gap:calc(var(--u)*.5);max-width:calc(var(--u)*20)}
+  .titleScreen{background:none}
+}
+.ovBtn{background:#8c1d13;color:#ffeede;border:1px solid #c8342b;border-radius:calc(var(--u)*.3);
+  padding:calc(var(--u)*.7) calc(var(--u)*1.6);font-size:calc(var(--u)*1.25);cursor:pointer;font-family:inherit}
+.ovBtn.ghost{background:transparent;color:#e6dcc4;border-color:rgba(216,180,90,.5)}
+.gameover .goCap{font-family:"Noto Serif JP",serif;font-size:calc(var(--u)*2);letter-spacing:.22em;
+  color:#cfc7b6;margin-bottom:calc(var(--u)*2)}
+
+/* ---------------- ゲームオーバー4幕（裁定X＋つる確定・台本 4-1） ----------------
+   幕3＝黒地・明朝の決算報告5行＋テロップ2行／幕4＝GAME OVER を残したまま決裁の間へ戻す。
+   **荒廃の絵は1枚も足さない**（決算書で通告する＝裁定X）。
+   `.goCap` の既存の見え方は変えない。`--komaPad` を使う要素は新設しない（QA-047/054/058）。 */
+#overlay[data-go]{place-items:stretch}
+#overlay[data-go="4"]{background:rgba(4,3,6,0);pointer-events:none}   /* 幕4はクリックを下へ通す */
+#overlay[data-go="5"]{background:rgba(4,3,6,.74)}
+.ovBox.gameover{width:100%;max-width:none;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:calc(var(--u)*1.2)}
+.gameover[data-act="4"],.gameover[data-act="5"]{justify-content:flex-start;padding-top:calc(var(--u)*3)}
+.gameover .goDoc{display:flex;flex-direction:column;align-items:center;width:100%;transition:opacity .55s}
+.gameover[data-act="4"] .goDoc,.gameover[data-act="5"] .goDoc{opacity:0}
+
+.goReport{font-family:"Noto Serif JP",serif;color:#cfc7b6;letter-spacing:.14em;
+  width:min(88vw,calc(var(--u)*34));display:flex;flex-direction:column;gap:calc(var(--u)*.55)}
+.goReport>div{opacity:0;transition:opacity .5s}
+.goReport>div.in{opacity:1}
+.goReport .rHead{text-align:center;font-size:calc(var(--u)*1.3);margin-bottom:calc(var(--u)*.6)}
+.goReport .rItem{display:flex;justify-content:space-between;align-items:baseline;
+  gap:calc(var(--u)*1);font-size:calc(var(--u)*1.05);
+  border-bottom:1px solid rgba(207,199,182,.22);padding-bottom:calc(var(--u)*.3)}
+.goReport .rItem>span{min-width:0}
+.goReport .rVal{white-space:nowrap}
+.goReport .rClose{text-align:left;font-size:calc(var(--u)*1.05);margin-top:calc(var(--u)*.8)}
+
+.goWorld{font-family:"Noto Serif JP",serif;color:#cfc7b6;letter-spacing:.24em;
+  font-size:calc(var(--u)*1.5);margin-top:calc(var(--u)*1.8);opacity:0;transition:opacity .9s}
+.goWorld.in{opacity:1}
+.goOver{font-family:"Noto Serif JP",serif;color:#e8ddc6;letter-spacing:.34em;
+  font-size:calc(var(--u)*2.2);opacity:0;transition:opacity .7s}
+.goOver.in{opacity:1}
+/* 幕4以降は決裁の間の絵の上に残るので、地の明るさに負けないよう影だけ足す */
+.gameover[data-act="4"] .goOver,.gameover[data-act="5"] .goOver{
+  text-shadow:0 0 calc(var(--u)*.9) rgba(4,3,6,.95),0 calc(var(--u)*.12) calc(var(--u)*.5) rgba(4,3,6,.92)}
+/* つる指示（2026-08-27 実機）「決裁を続ける で通常の立ち絵に戻って GAME OVER 表記なしに」。
+   終わった画面のまま続きを喋らせない＝**もう終わっていない**を画面で示す。
+   幕6＝最終行以降。テロップも決算書も消し、ボタンだけを残す。 */
+.gameover[data-act="6"] .goOver,
+.gameover[data-act="6"] .goWorld,
+.gameover[data-act="6"] .goCap,
+.gameover[data-act="6"] .goDoc{opacity:0!important;transition:opacity .45s}
+/* つる指示（2026-08-27 実機）「決裁を続けるの時に出る［続きから］［タイトルへ戻る］これいらない」。
+   最終行ではもう審査に戻っているので、ボタンも出さない（伝票UIにも被っていた）。 */
+.gameover[data-act="6"] .goBtns{display:none!important}
+#overlay[data-go="6"]{background:rgba(4,3,6,0);pointer-events:none}
+.goBtns{display:none}
+.gameover[data-act="5"] .goBtns{display:flex;flex-wrap:wrap;justify-content:center;
+  gap:calc(var(--u)*.8);margin-top:calc(var(--u)*2.4)}
+
+/* 縦持ち（390×844）で決算報告5行が画面内に収まること。**行は削らず字だけ詰める** */
+@media (max-aspect-ratio: 6/5){
+  .gameover .goCap{font-size:calc(var(--u)*1.5);margin-bottom:calc(var(--u)*1.4)}
+  .goReport{width:min(92vw,calc(var(--u)*32));letter-spacing:.04em}
+  .goReport .rHead{font-size:calc(var(--u)*1.15);letter-spacing:.12em}
+  .goReport .rItem{font-size:calc(var(--u)*.95)}
+  .goReport .rClose{font-size:calc(var(--u)*.95)}
+  .goWorld{font-size:calc(var(--u)*1.25);letter-spacing:.14em}
+  .goOver{font-size:calc(var(--u)*1.85);letter-spacing:.26em}
+}
+.end .endTitle{font-family:"Noto Serif JP",serif;font-size:calc(var(--u)*2.6);letter-spacing:.3em;
+  color:#f0e6cf;margin-bottom:calc(var(--u)*2)}
+.confirm .cfText{font-size:calc(var(--u)*1.4);margin-bottom:calc(var(--u)*1.4);color:#f0e6cf}
+.cfBtns{display:flex;gap:calc(var(--u)*.8);justify-content:center}
+
+/* ---------------- スマホ用の移動パッド ---------------- */
+#padPort{display:none;position:absolute;left:var(--cpad);right:var(--cpad);bottom:calc(var(--u)*.8);
+  grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,auto);gap:calc(var(--u)*.4);
+  width:min(74%,calc(var(--u)*24));margin:0 auto;z-index:6}
+/* D-padは実際に歩ける場面だけ出す。層だけで判定すると、歩けないカットシーン
+   （冒頭シリアス・転落の瞬間・始末書）にも十字キーが出てナレーションを覆う（QA-003）。 */
+#app[data-walk="1"] #padPort{display:grid}
+#padPort button{background:rgba(20,16,26,.72);border:1px solid rgba(216,180,90,.45);color:#e6dcc4;
+  border-radius:calc(var(--u)*.4);padding:calc(var(--u)*.7) 0;font-size:calc(var(--u)*1.1);
+  cursor:pointer;font-family:inherit;touch-action:none;min-height:46px}
+#mvUp{grid-area:1/2}#mvLeft{grid-area:2/1}#mvAct{grid-area:1/3;grid-row:1/3;font-size:calc(var(--u)*.95)}
+#mvRight{grid-area:2/3}#mvDown{grid-area:2/2}
+#mvRight{grid-column:3;grid-row:2}
+#mvAct{grid-column:1;grid-row:1}
+/* 配置：[調べる][▲][ ] / [◀][▼][▶] */
+#mvAct{grid-area:1/1/2/2}#mvUp{grid-area:1/2/2/3}
+#mvLeft{grid-area:2/1/3/2}#mvDown{grid-area:2/2/3/3}#mvRight{grid-area:2/3/3/4}
+
+/* ---------------- デバッグ ---------------- */
+#debugBox{position:fixed;left:0;top:0;z-index:60;background:rgba(0,0,0,.82);color:#9f9;
+  font:11px/1.4 monospace;padding:4px;max-width:52vw;max-height:44vh;overflow:auto}
+#debugBox button{font:11px monospace;margin:1px;background:#222;color:#9f9;border:1px solid #383;cursor:pointer}
+#dbgState{white-space:pre-wrap;font-size:10px;color:#cfc}
+
+
+/* ============================================================
+   縦持ち（スマホ）専用の詰め directive
+   横長は「魔王 vs ノルマンの2ショット」、縦持ちは「話している人だけ大きく」。
+   立ち絵は 838x900 なので、縦持ちで2枚並べると画面幅を必ず超える（実測 435px > 375px）。
+   ============================================================ */
+@media (max-aspect-ratio: 6/5) {
+  #app[data-orient="port"] .chara { height: 100%; max-width: 100%; object-fit: contain; object-position: bottom center; }
+  /* 既定は非表示。話している人だけ出す */
+  #app[data-orient="port"] .chara.left,
+  #app[data-orient="port"] .chara.right,
+  #app[data-orient="port"] .chara.center { left: 50%; right: auto; transform: translateX(-50%); opacity: 0; }
+  #app[data-orient="port"] .chara.active { opacity: 1; }
+  /* ナレーション等で誰も active でないときは魔王を残す（画が空にならない） */
+  #app[data-orient="port"][data-speaker="narration"] .chara.left,
+  #app[data-orient="port"][data-speaker="extra"] .chara.left { opacity: 1; }
+  /* 3人同時（S7の「お前、田中かよ！」）は3枚並べる */
+  #app[data-orient="port"][data-trio="1"] .chara { height: 62%; width: 34%; opacity: 1; }
+  #app[data-orient="port"][data-trio="1"] .chara.left   { left: 2%;  transform: none; opacity: .4 }
+  #app[data-orient="port"][data-trio="1"] .chara.center { left: 34%; transform: none }
+  #app[data-orient="port"][data-trio="1"] .chara.right  { left: 66%; transform: none }
+  /* RPG層のマップは縦持ちでは画面中央に寄せ、下に操作パッドの余白を残す */
+  /* マップは3:2固定なので縦持ちでは必ず上下に余白が出る。中央に置き、
+     地を石壁のグラデーションにして「壊れた黒」に見えないようにする（QA-014）。 */
+  #app[data-orient="port"] #mapCanvas { top: 0; bottom: 0; margin: auto; }
+  #app[data-orient="port"][data-layer="RPG"] #view {
+    background: radial-gradient(120% 60% at 50% 42%, #2a2233 0%, #16121c 62%, #0b0810 100%);
+  }
+  /* ★つる指摘（2026-09-01 実機）ここに max-height:40% を置いていたのが
+     「文字が吹き出しからはみ出す」の真犯人だった。JSが**文字が内接する大きさ**として
+     決めた楕円だけを後から縮めるので、文字は縮まず必ず外へ出る。
+     高さの上限は engine.js の layoutBalloon（縦持ちは画面の62%）が持つ。**ここには置かない。** */
+  #app[data-orient="port"] .fxWrite { font-size: calc(var(--u) * 4.6) }
+  #app[data-orient="port"] #textbox { font-size: calc(var(--u) * 1.34); line-height: 1.66 }
+  #app[data-orient="port"] .ch { font-size: calc(var(--u) * 1.14) }
+}
+
+
+/* ============================================================
+   審査中の伝票UI（裁定O）
+   03_assets 6章「伝票の枠・罫線・金額欄はHTML表＋ui_paper_01。伝票ごとの画像は作らない」。
+   下地だけ ui_paper_01 を敷き（--paperTex）、罫線・枠・朱印の状態表示は全部CSS。
+   制約：①立ち絵の顔と表情差分を隠さない ②390×844で本文窓と競合しない。
+   ============================================================ */
+/* 位置の制約（裁定O）：立ち絵の顔と表情差分を隠さない。
+   立ち絵は腿上（838×900）で顔が上端寄りに来るので、伝票は画の下半分へ置く。 */
+#voucher{position:absolute;left:calc(var(--cpad) + var(--cw)*.022);top:34%;width:min(calc(var(--cw)*.30),calc(var(--u)*21));
+  background:var(--paper);background-image:var(--paperTex);background-size:cover;background-blend-mode:multiply;
+  color:var(--ink);border:1px solid #b09a72;border-radius:calc(var(--u)*.28);
+  box-shadow:0 calc(var(--u)*.45) calc(var(--u)*1.3) rgba(0,0,0,.62);
+  padding:calc(var(--u)*.66) calc(var(--u)*.8);z-index:3;pointer-events:none;
+  max-height:62%;overflow:hidden}
+#voucher.in{animation:vcIn .18s ease-out}
+@keyframes vcIn{from{transform:translateY(calc(var(--u)*-.7));opacity:0}to{transform:none;opacity:1}}
+.vcHead{display:flex;align-items:baseline;gap:calc(var(--u)*.45);
+  border-bottom:2px solid #8a7350;padding-bottom:calc(var(--u)*.26);margin-bottom:calc(var(--u)*.3)}
+.vcNo{font-size:calc(var(--u)*.76);letter-spacing:.14em;color:#7a6647;flex:none}
+.vcTitle{font-size:calc(var(--u)*.95);font-weight:700;line-height:1.25}
+.vcTable{width:100%;border-collapse:collapse;font-size:calc(var(--u)*.86)}
+.vcTable th{text-align:left;font-weight:400;padding:calc(var(--u)*.2) 0;
+  border-bottom:1px dotted #b3a184;line-height:1.35}
+.vcTable td{text-align:right;white-space:nowrap;padding:calc(var(--u)*.2) 0 calc(var(--u)*.2) calc(var(--u)*.5);
+  border-bottom:1px dotted #b3a184;font-variant-numeric:tabular-nums;font-weight:700}
+/* 決裁の結果を伝票そのものに残す（朱印の演出は fxStamp が別に叩きつける） */
+#voucher[data-state="rejected"]{box-shadow:0 0 0 2px var(--shu) inset,0 calc(var(--u)*.45) calc(var(--u)*1.3) rgba(0,0,0,.62)}
+#voucher[data-state="approved"]{box-shadow:0 0 0 2px var(--shu2) inset,0 calc(var(--u)*.45) calc(var(--u)*1.3) rgba(0,0,0,.62)}
+#voucher[data-state="rejected"] .vcHead::after{content:"差戻";margin-left:auto;color:var(--shu);
+  font-weight:900;font-size:calc(var(--u)*.8);letter-spacing:.1em;flex:none}
+#voucher[data-state="approved"] .vcHead::after{content:"承認";margin-left:auto;color:var(--shu2);
+  font-weight:900;font-size:calc(var(--u)*.8);letter-spacing:.1em;flex:none}
+/* 速射カードにも同じ紙を敷く（ui_paper_01 を全UIの下地にする＝03_assets 6章） */
+#slipCard{background-image:var(--paperTex);background-size:cover;background-blend-mode:multiply}
+#textbox{background-image:var(--paperTex);background-size:cover;background-blend-mode:multiply}
+
+/* 縦持ちでは伝票を上端の帯にして、立ち絵の顔と本文窓の両方を避ける */
+@media (max-aspect-ratio: 6/5){
+  /* 縦持ちは話者ひとりを中央に大きく出すので、上端に置くと必ず顔にかぶる。
+     本文窓の上（画の下端）に帯で出す。 */
+  #app[data-orient="port"] #voucher{left:2%;right:2%;top:auto;bottom:1.5%;width:auto;max-height:36%}
+  #app[data-orient="port"] .vcTable th{line-height:1.25}
+}

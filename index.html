@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>経理の魔王様 ― 勇者ご一行、精算に参りました</title>
+<meta name="description" content="その冒険、経費で落ちると思うなよ。前世経理課長の魔王になって、前世適当営業マンの勇者・田中の経費を差し戻すゲーム。">
+<meta property="og:title" content="経理の魔王様">
+<meta property="og:description" content="その冒険、経費で落ちると思うなよ。前世経理課長の魔王になって、勇者の経費を差し戻す。決め台詞は「差し戻し！」">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://turu00260026.github.io/keirinomaousama/">
+<meta property="og:image" content="https://turu00260026.github.io/keirinomaousama/og_image.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="css/style.css?v=202609011237">
+</head>
+<body>
+<div id="app" data-layer="決裁" data-tone="gag" data-font="gothic">
+
+  <div id="view">
+    <img id="bg" alt="" data-fit="cover">
+    <canvas id="mapCanvas" style="display:none"></canvas>
+    <img id="charaL" class="chara left" alt="" style="display:none">
+    <img id="charaC" class="chara center" alt="" style="display:none">
+    <img id="charaR" class="chara right" alt="" style="display:none">
+    <img id="komaImg" class="koma" alt="" style="display:none">
+    <div id="komaCaption" style="display:none"></div>
+    <!-- 魔王が声を張る生涯唯一の一行だけ、絵の中央へ大きく出す（つる指示【23】） -->
+    <div id="shout"><span class="stxt"></span></div>
+    <div id="balloons" style="display:none"></div>
+    <div id="slipCard" style="display:none"></div>
+    <div id="voucher" style="display:none"></div>
+    <div id="fxLayer"></div>
+    <div id="sysBtns">
+      <button id="btnBack" type="button" aria-label="ひとつ前の台詞へ"><span class="ic">&#8617;</span>戻る</button>
+      <button id="btnCfg" type="button" aria-label="設定"><span class="ic">&#9881;</span>設定</button>
+    </div>
+    <div id="reviewBar" style="display:none"></div>
+    <div id="sceneCard" style="display:none"></div>
+    <div id="roamGoal" style="display:none"></div>
+    <div id="padPort">
+      <button id="mvUp">▲</button>
+      <button id="mvLeft">◀</button>
+      <button id="mvAct">調べる</button>
+      <button id="mvRight">▶</button>
+      <button id="mvDown">▼</button>
+    </div>
+  </div>
+
+  <div id="dock">
+    <div id="hud">
+      <div id="stomachBox" title="魔王の胃"></div>
+      <div id="slipBox"></div>
+      <div class="hudSpace"></div>
+      <button id="muteBtn">♪ ON</button>
+    </div>
+    <div id="textbox">
+      <div id="speaker"></div>
+      <div id="body"></div>
+      <div class="cursor">▼</div>
+    </div>
+    <div id="choices" style="display:none"></div>
+  </div>
+
+  <div id="overlay"></div>
+  <div id="debugBox" style="display:none"></div>
+</div>
+
+<script src="js/scenes.js?v=202609011237"></script>
+<script src="js/assets.js?v=202609011237"></script>
+<script src="js/vouchers.js?v=202609011237"></script>
+<script src="js/stagecraft.js?v=202609011237"></script>
+<script src="js/audio.js?v=202609011237"></script>
+<script src="js/engine.js?v=202609011237"></script>
+</body>
+</html>
